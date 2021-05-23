@@ -32,8 +32,12 @@ const postcssNormalize = require('postcss-normalize');
 const appPackageJson = require(paths.appPackageJson);
 
 // Source maps are resource heavy and can cause out of memory issue for large source files.
+// 定义是否生成sourceMap
+// 通过cross-env 在执行脚本时候修改环境变量
+// "build": "cross-env GENERATE_SOURCEMAP=false node scripts/build.js"
 const shouldUseSourceMap = process.env.GENERATE_SOURCEMAP !== 'false';
 
+// 开发时候的入口文件
 const webpackDevClientEntry = require.resolve(
   'react-dev-utils/webpackHotDevClient'
 );
@@ -43,22 +47,26 @@ const reactRefreshOverlayEntry = require.resolve(
 
 // Some apps do not need the benefits of saving a web request, so not inlining the chunk
 // makes for a smoother build process.
+// 是否内联runtime 文件
 const shouldInlineRuntimeChunk = process.env.INLINE_RUNTIME_CHUNK !== 'false';
 
 const emitErrorsAsWarnings = process.env.ESLINT_NO_DEV_ERRORS === 'true';
 const disableESLintPlugin = process.env.DISABLE_ESLINT_PLUGIN === 'true';
 
+// 最大转换为base的图片大小
 const imageInlineSizeLimit = parseInt(
   process.env.IMAGE_INLINE_SIZE_LIMIT || '10000'
 );
 
 // Check if TypeScript is setup
+// 检查是否使用ts
 const useTypeScript = fs.existsSync(paths.appTsConfig);
 
 // Get the path to the uncompiled service worker (if it exists).
 const swSrc = paths.swSrc;
 
 // style files regexes
+// 样式文件正则
 const cssRegex = /\.css$/;
 const cssModuleRegex = /\.module\.css$/;
 const sassRegex = /\.(scss|sass)$/;
@@ -79,6 +87,7 @@ const hasJsxRuntime = (() => {
 
 // This is the production and development configuration.
 // It is focused on developer experience, fast rebuilds, and a minimal bundle.
+// 生成最终webpack开发或者生产环境配置的函数
 module.exports = function (webpackEnv) {
   const isEnvDevelopment = webpackEnv === 'development';
   const isEnvProduction = webpackEnv === 'production';
@@ -92,14 +101,20 @@ module.exports = function (webpackEnv) {
   // as %PUBLIC_URL% in `index.html` and `process.env.PUBLIC_URL` in JavaScript.
   // Omit trailing slash as %PUBLIC_URL%/xyz looks better than %PUBLIC_URL%xyz.
   // Get environment variables to inject into our app.
+  // 获取环境变量
+  // 加载.env文件的环境变量，必须以REACT_APP_开头
   const env = getClientEnvironment(paths.publicUrlOrPath.slice(0, -1));
 
   const shouldUseReactRefresh = env.raw.FAST_REFRESH;
 
   // common function to get style loaders
+  // 获取处理样式文件的loader函数
   const getStyleLoaders = (cssOptions, preProcessor) => {
     const loaders = [
+      // require.resolve 可以直接得到该文件的决定路径，webpack编译的时候可以减少时间
+      // 开发环境样式直接注入到js文件中
       isEnvDevelopment && require.resolve('style-loader'),
+      // 生产环境，将css直接打包成单独文件
       isEnvProduction && {
         loader: MiniCssExtractPlugin.loader,
         // css is located in `static/css`, use '../../' to locate index.html folder
@@ -116,6 +131,7 @@ module.exports = function (webpackEnv) {
         // Options for PostCSS as we reference these options twice
         // Adds vendor prefixing based on your specified browser support in
         // package.json
+        // css预处理
         loader: require.resolve('postcss-loader'),
         options: {
           // Necessary for external CSS imports to work
@@ -158,10 +174,13 @@ module.exports = function (webpackEnv) {
     return loaders;
   };
 
+  // webpack 配置对象
   return {
     mode: isEnvProduction ? 'production' : isEnvDevelopment && 'development',
     // Stop compilation early in production
+    // 生产环境出现错误立马终止编译
     bail: isEnvProduction,
+    // 配置source-map
     devtool: isEnvProduction
       ? shouldUseSourceMap
         ? 'source-map'
@@ -169,6 +188,7 @@ module.exports = function (webpackEnv) {
       : isEnvDevelopment && 'cheap-module-source-map',
     // These are the "entry points" to our application.
     // This means they will be the "root" imports that are included in JS bundle.
+    // 入口文件
     entry:
       isEnvDevelopment && !shouldUseReactRefresh
         ? [
@@ -198,6 +218,7 @@ module.exports = function (webpackEnv) {
       // The build folder.
       path: isEnvProduction ? paths.appBuild : undefined,
       // Add /* filename */ comments to generated require()s in the output.
+      // 添加 /* filename */ 注释到输出的文件中
       pathinfo: isEnvDevelopment,
       // There will be one main bundle, and one file per asynchronous chunk.
       // In development, it does not produce real files.
@@ -227,12 +248,14 @@ module.exports = function (webpackEnv) {
       jsonpFunction: `webpackJsonp${appPackageJson.name}`,
       // this defaults to 'window', but by setting it to 'this' then
       // module chunks which are built will work in web workers as well.
+      // 定义全局
       globalObject: 'this',
     },
     optimization: {
       minimize: isEnvProduction,
       minimizer: [
         // This is only used in production mode
+        // 压缩js的插件
         new TerserPlugin({
           terserOptions: {
             parse: {
@@ -274,6 +297,7 @@ module.exports = function (webpackEnv) {
           sourceMap: shouldUseSourceMap,
         }),
         // This is only used in production mode
+        // 压缩css
         new OptimizeCSSAssetsPlugin({
           cssProcessorOptions: {
             parser: safePostCssParser,
@@ -296,6 +320,7 @@ module.exports = function (webpackEnv) {
       // Automatically split vendor and commons
       // https://twitter.com/wSokra/status/969633336732905474
       // https://medium.com/webpack/webpack-4-code-splitting-chunk-graph-and-the-splitchunks-optimization-be739a861366
+      // 代码分割
       splitChunks: {
         chunks: 'all',
         name: isEnvDevelopment,
@@ -303,15 +328,17 @@ module.exports = function (webpackEnv) {
       // Keep the runtime chunk separated to enable long term caching
       // https://twitter.com/wSokra/status/969679223278505985
       // https://github.com/facebook/create-react-app/issues/5358
+      // 代码缓存
       runtimeChunk: {
         name: entrypoint => `runtime-${entrypoint.name}`,
       },
     },
-    resolve: {
+    resolve: {  // 解析规则
       // This allows you to set a fallback for where webpack should look for modules.
       // We placed these paths second because we want `node_modules` to "win"
       // if there are any conflicts. This matches Node resolution mechanism.
       // https://github.com/facebook/create-react-app/issues/253
+      // node_modules 的解析规则
       modules: ['node_modules', paths.appNodeModules].concat(
         modules.additionalModulePaths || []
       ),
@@ -344,6 +371,7 @@ module.exports = function (webpackEnv) {
         // To fix this, we prevent you from importing files out of src/ -- if you'd like to,
         // please link the files into your node_modules/ and let module-resolution kick in.
         // Make sure your source files are compiled, as they will not be processed in any way.
+        // 限制自定义模块的查找范围
         new ModuleScopePlugin(paths.appSrc, [
           paths.appPackageJson,
           reactRefreshOverlayEntry,
@@ -366,6 +394,7 @@ module.exports = function (webpackEnv) {
           // "oneOf" will traverse all following loaders until one will
           // match the requirements. When no loader matches it will fall
           // back to the "file" loader at the end of the loader list.
+          // 一个文件只回被一个loader执行，
           oneOf: [
             // TODO: Merge this config once `image/avif` is in the mime-db
             // https://github.com/jshttp/mime-db
@@ -391,6 +420,7 @@ module.exports = function (webpackEnv) {
             },
             // Process application JS with Babel.
             // The preset includes JSX, Flow, TypeScript, and some ESnext features.
+            // babel 转换处理src下的文件
             {
               test: /\.(js|mjs|jsx|ts|tsx)$/,
               include: paths.appSrc,
@@ -435,6 +465,7 @@ module.exports = function (webpackEnv) {
             },
             // Process any JS outside of the app with Babel.
             // Unlike the application JS, we only compile the standard ES features.
+            // 处理上面的loader不处理的js文件，例如node_modules
             {
               test: /\.(js|mjs)$/,
               exclude: /@babel(?:\/|\\{1,2})runtime/,
@@ -480,6 +511,7 @@ module.exports = function (webpackEnv) {
               // containing package claims to have no side effects.
               // Remove this when webpack adds a warning or an error for this.
               // See https://github.com/webpack/webpack/issues/6571
+              // 不进行tree-shaking 处理
               sideEffects: true,
             },
             // Adds support for CSS Modules (https://github.com/css-modules/css-modules)
@@ -499,6 +531,7 @@ module.exports = function (webpackEnv) {
             // Opt-in support for SASS (using .scss or .sass extensions).
             // By default we support SASS Modules with the
             // extensions .module.scss or .module.sass
+            // 模块化样式
             {
               test: sassRegex,
               exclude: sassModuleRegex,
@@ -539,6 +572,7 @@ module.exports = function (webpackEnv) {
             // In production, they would get copied to the `build` folder.
             // This loader doesn't use a "test" so it will catch all modules
             // that fall through the other loaders.
+            // 处理前面loader不处理的文件，直接输出
             {
               loader: require.resolve('file-loader'),
               // Exclude `js` files to keep "css" loader working as it injects
@@ -586,6 +620,7 @@ module.exports = function (webpackEnv) {
       // Inlines the webpack runtime script. This script is too small to warrant
       // a network request.
       // https://github.com/facebook/create-react-app/issues/5358
+      // 是否内联runtime文件的插件
       isEnvProduction &&
         shouldInlineRuntimeChunk &&
         new InlineChunkHtmlPlugin(HtmlWebpackPlugin, [/runtime-.+[.]js/]),
@@ -594,9 +629,11 @@ module.exports = function (webpackEnv) {
       // <link rel="icon" href="%PUBLIC_URL%/favicon.ico">
       // It will be an empty string unless you specify "homepage"
       // in `package.json`, in which case it will be the pathname of that URL.
+      // 解析index.html中 %PUBLIC_URL% 
       new InterpolateHtmlPlugin(HtmlWebpackPlugin, env.raw),
       // This gives some necessary context to module not found errors, such as
       // the requesting resource.
+      // 给没有找到的module更好的提示
       new ModuleNotFoundPlugin(paths.appPath),
       // Makes some environment variables available to the JS code, for example:
       // if (process.env.NODE_ENV === 'production') { ... }. See `./env.js`.
@@ -604,7 +641,9 @@ module.exports = function (webpackEnv) {
       // during a production build.
       // Otherwise React will be compiled in the very slow development mode.
       new webpack.DefinePlugin(env.stringified),
+
       // This is necessary to emit hot updates (CSS and Fast Refresh):
+      // 开发环境下，热更新（HMR）功能
       isEnvDevelopment && new webpack.HotModuleReplacementPlugin(),
       // Experimental hot reloading for React .
       // https://github.com/facebook/react/tree/master/packages/react-refresh
@@ -624,13 +663,16 @@ module.exports = function (webpackEnv) {
       // Watcher doesn't work well if you mistype casing in a path so we use
       // a plugin that prints an error when you attempt to do this.
       // See https://github.com/facebook/create-react-app/issues/240
+      // 文件路径：严格区分大小写
       isEnvDevelopment && new CaseSensitivePathsPlugin(),
       // If you require a missing module and then `npm install` it, you still have
       // to restart the development server for webpack to discover it. This plugin
       // makes the discovery automatic so you don't have to restart.
       // See https://github.com/facebook/create-react-app/issues/186
+      // 开发环境下，监听模块变化，自动重启
       isEnvDevelopment &&
         new WatchMissingNodeModulesPlugin(paths.appNodeModules),
+        // 生产环境下，输出css文件
       isEnvProduction &&
         new MiniCssExtractPlugin({
           // Options similar to the same options in webpackOptions.output
@@ -740,6 +782,7 @@ module.exports = function (webpackEnv) {
     ].filter(Boolean),
     // Some libraries import Node modules but don't use them in the browser.
     // Tell webpack to provide empty mocks for them so importing them works.
+    // webpack会将node的模块打包， 将node的模块置为空
     node: {
       module: 'empty',
       dgram: 'empty',
